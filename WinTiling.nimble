@@ -5,7 +5,7 @@ author        = "Zrean Tofiq"
 description   = "Windows 10 TWM"
 license       = "MIT"
 srcDir        = "src"
-bin           = @["WinTiling"]
+bin           = @["win_tiling"]
 binDir        = "bin"
 
 # Dependencies
