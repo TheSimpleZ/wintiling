@@ -4,7 +4,7 @@ type Window* = object
   nativeHandle*: HWND
 
 converter hwndToWindow*(windowHandle: HWND): Window =
-  result = Window(nativeHandle: windowHandle)
+  Window(nativeHandle: windowHandle)
 
 proc title*(window: Window): string =
   let length = window.nativeHandle.GetWindowTextLength;

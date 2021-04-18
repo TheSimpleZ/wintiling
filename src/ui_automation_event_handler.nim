@@ -34,16 +34,16 @@ proc release(self: ptr IUnknown): ULONG {.stdcall.} =
 
 proc queryInterface(self: ptr IUnknown, riid: REFIID, ppvObject: ptr pointer):
                     HRESULT {.stdcall.} =
-    if IsEqualIID(riid, &IID_IUnknown) or
-       IsEqualIID(riid, &IID_IUIAutomationEventHandler)
-    :
-      ppvObject[] = toEventHandler self
-    else:
-      ppvObject[] = nil
-      return E_NOINTERFACE
+  if IsEqualIID(riid, &IID_IUnknown) or
+     IsEqualIID(riid, &IID_IUIAutomationEventHandler)
+  :
+    ppvObject[] = toEventHandler self
+  else:
+    ppvObject[] = nil
+    return E_NOINTERFACE
 
-    self.AddRef()
-    return S_OK
+  self.AddRef()
+  return S_OK
 
 proc newUiAutomationEventHandler*(handler: AutomationEventHandler):
                                   ptr UiAutomationEventHandler =
