@@ -29,11 +29,11 @@ proc isTaskTrayProgram(windowHandle: HWND): bool =
   var titlebarInfo: TITLEBARINFO
 
   titlebarInfo.cbSize = cast[DWORD](sizeof titlebarInfo)
-  GetTitleBarInfo(windowHandle, &titlebarInfo);
+  windowHandle.GetTitleBarInfo(&titlebarInfo)
   result = titlebarInfo.rgstate[0] and STATE_SYSTEM_INVISIBLE
 
 proc isToolWindow(windowHandle: HWND): bool =
-  result = GetWindowLong(windowHandle, GWL_EXSTYLE) and WS_EX_TOOLWINDOW
+  windowHandle.GetWindowLong(GWL_EXSTYLE) and WS_EX_TOOLWINDOW
 
 
 proc isActuallyVisible*(windowHandle: HWND): bool =

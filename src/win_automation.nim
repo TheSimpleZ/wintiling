@@ -19,6 +19,14 @@ proc cleanup(wa: WinAutomation) =
       raise newException(OSError, "Could not remove all event handlers")
     CoUninitialize()
 
+proc enumerateVisibleWindows(windowHandle: HWND, lParam: LPARAM):
+                            WINBOOL {.stdcall.} =
+  var returnList = cast[ptr seq[HWND]](lParam)
+  if isActuallyVisible(windowHandle):
+    returnList[].add(windowHandle)
+
+  return true
+
 proc newWinAutomation*(): WinAutomation =
   var wa: WinAutomation
   new wa, cleanup
@@ -36,27 +44,31 @@ proc newWinAutomation*(): WinAutomation =
   if hResult.FAILED or result.desktop.isNil:
     raise newException(OSError, "Could not get root element")
 
-proc enumerateVisibleWindows(windowHandle: HWND, lParam: LPARAM):
-                            WINBOOL {.stdcall.} =
-  var returnList = cast[ptr seq[HWND]](lParam)
-  if isActuallyVisible(windowHandle):
-    returnList[].add(windowHandle)
-
-  return true
-
 proc getAllVisibleWindows*(): seq[Window] =
   var openWindowHandles = newSeqOfCap[HWND](100)
   EnumWindows(enumerateVisibleWindows, cast[LPARAM](&openWindowHandles))
-  result = openWindowHandles.mapIt(Window(nativeHandle: it))
+  result = openWindowHandles.mapIt(initWindow(it))
 
-template onWindowOpened*(wa: WinAutomation, handler: proc(newWindow: Window)) =
+proc getWorkAreaSize*(): (int32, int32) =
+  let rect = Rect()
+
+  SystemParametersInfo(SPI_GETWORKAREA, 0, &rect, 0)
+
+  let width = rect.right - rect.left
+  let height = rect.bottom - rect.top
+  (width, height)
+
+type WindowStateChangeEvent* = enum
+  Opened = UIA_Window_WindowOpenedEventId,
+  Closed = UIA_Window_WindowClosedEventId
+
+template onWindowStateChanged*(wa: WinAutomation, handler: proc(newWindow: Window, eventType: WindowStateChangeEvent)) =
   proc handlerWrapper(self: ptr IUIAutomationEventHandler,
                          sender: ptr IUIAutomationElement,
                          eventId: EVENTID): HRESULT {.stdcall.} =
     var handle: UIA_HWND
     sender.get_CurrentNativeWindowHandle(&handle)
-    if isActuallyVisible(handle):
-      handler(Window(nativeHandle: handle))
+    handler(initWindow(handle), WindowStateChangeEvent(eventId))
     return S_OK
 
   var eventHandler = newUiAutomationEventHandler(handlerWrapper)
@@ -66,4 +78,14 @@ template onWindowOpened*(wa: WinAutomation, handler: proc(newWindow: Window)) =
       TreeScope_Subtree,
       NULL,
       toIUIAutomationEventHandler(eventHandler)
-    ).FAILED: raise
+    ).FAILED:
+      raise newException(OSError, "Could not add window opened event handler")
+
+  if wa.automation.AddAutomationEventHandler(
+      UIA_Window_WindowClosedEventId,
+      wa.desktop,
+      TreeScope_Subtree,
+      NULL,
+      toIUIAutomationEventHandler(eventHandler)
+    ).FAILED:
+      raise newException(OSError, "Could not add window closed event handler")
