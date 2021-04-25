@@ -9,6 +9,7 @@ import strutils
 import logging
 import tables
 import sets
+import tree
 
 var logger = newConsoleLogger()
 addHandler(logger)
@@ -27,21 +28,15 @@ debug "Windows detected: ", $windows.mapIt(it.title)
 let (desktopWidth, desktopHeight) = getWorkAreaSize()
 let windowLayouts = collect(newSeq):
   for i, win in windows:
-    DesktopLayout(
-      kind: LayoutKind.Window,
-      window: win,
-      isFocused: i == 0
-    )
-let topLevelLayout = DesktopLayout(kind: Container,
-                            children: windowLayouts,
-                            growDirection: Row)
-
-topLevelLayout.setDimensions(desktopWidth, desktopHeight, 0, 0)
+    newWindowLayout(win,i == 0)
+var topLevelLayout = newContainerLayout(
+  windowLayouts,
+  Row,
+  desktopWidth,
+  desktopHeight
+)
 
 topLevelLayout.render()
-
-proc isFocusedContainer(it: DesktopLayout): bool =
-  it.kind == Container and isFocused(it)
 
 
 proc windowStateChanged(newWindow: Window, eventType: WindowStateChangeEvent) =
@@ -50,19 +45,18 @@ proc windowStateChanged(newWindow: Window, eventType: WindowStateChangeEvent) =
       if newWindow.isVisible:
         debug("Windows opened: ", newWindow.title)
         # newWindow.isResizeable = false
-        topLevelLayout.walk(Container) do (layout: DesktopLayout)->bool:
-          result = true
-          if layout.isFocusedContainer:
-            layout.children.add(DesktopLayout(
-              kind: LayoutKind.Window,
-              window: newWindow,
-            ))
-            result = false
+        var focusedContainer = topLevelLayout.first do (layout: DesktopLayout)->bool:
+           layout.value.kind == Container and isFocused(layout)
+
+        focusedContainer.add(newWindow)
+        # topLevelLayout.children = topLevelLayout.children & newWindowLayout(newWindow)
     of Closed:
-      topLevelLayout.walk(Container) do (layout: DesktopLayout)->bool:
-        layout.children.keepItIf(it.kind == LayoutKind.Window and it.window.nativeHandle.IsWindow.bool)
+      topLevelLayout.all do (layout: DesktopLayout)->bool:
+        layout.children.keepItIf((it.value.kind == LayoutKind.Window and
+                                  it.value.window.nativeHandle.IsWindow.bool) or
+                                  it.value.kind == LayoutKind.Container
+                                )
         result = true
-  topLevelLayout.setDimensions(desktopWidth, desktopHeight, 0, 0)
   topLevelLayout.render()
 
 winAuto.onWindowStateChanged(windowStateChanged)
@@ -70,7 +64,7 @@ winAuto.onWindowStateChanged(windowStateChanged)
 
 proc resetAllStyles() {.noconv.} =
   for windowLayout in topLevelLayout.allWindows:
-    let window = windowLayout.window
+    let window = windowLayout.value.window
     echo window.title
     window.resetStyles()
   quit()
@@ -102,11 +96,9 @@ proc HookCallback(nCode: int32, wParam: WPARAM, lParam: LPARAM): LRESULT {.stdca
           # if byte(kbdstruct.vkCode) == VK_LWIN:
           keysPressed.incl(kbdstruct.vkCode)
           if keysPressed == [VK_LWIN, virtualCodes['E']].toOrderedSet:
-            topLevelLayout.growDirection = if topLevelLayout.growDirection == Column:
+            topLevelLayout.value.growDirection = if topLevelLayout.value.growDirection == Column:
                                             Row
                                            else: Column
-            topLevelLayout.setDimensions(desktopWidth, desktopHeight, 0, 0)
-
             topLevelLayout.render()
             return 1
 

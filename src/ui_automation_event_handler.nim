@@ -4,7 +4,6 @@ import winim/com
 # https://docs.microsoft.com/en-us/windows/win32/winauto/uiauto-howto-implement-event-handlers
 
 type
-  UIAutomationEventHandlerVtbl = ref object of IUIAutomationEventHandlerVtbl
   UiAutomationEventHandler {.pure.} = object
     lpVtbl: ptr IUIAutomationEventHandlerVtbl
     vtbl: IUIAutomationEventHandlerVtbl

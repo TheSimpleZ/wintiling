@@ -1,7 +1,11 @@
 nimcache/
 nimblecache/
 htmldocs/
-
+testresults/**/*
+outputGotten.txt
 bin
 
+*.exe
+
 .vscode
+*megatest*

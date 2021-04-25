@@ -15,3 +15,6 @@ requires "winim >= 3.6.0"
 
 # before build:
 #   exec "nim c --outDir:bin/ -d:useNimRtl --app:lib src/WinTilingHooks.nim"
+
+task test, "Runs the test suite":
+  exec "testament all"

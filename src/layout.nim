@@ -4,6 +4,7 @@ import math
 import sequtils
 import sugar
 import options
+import tree
 type
   LayoutKind* = enum
     Window, Container
@@ -11,73 +12,71 @@ type
   Direction* = enum
     Row, Column
 
-
-  DesktopLayout*  = ref object
-    width, height: int
-    x, y: int
+  DesktopLayoutRef* = ref object
+    width*, height*: int
+    x*, y*: int
     case kind*: LayoutKind
       of Window:
         window*: Window
         isFocused*: bool
       of Container:
-        children*: seq[DesktopLayout]
         growDirection*: Direction
+  DesktopLayout* = Tree[DesktopLayoutRef]
+
+proc newWindowLayout*(window: Window, isFocused = false): DesktopLayout =
+  let newLayout = DesktopLayoutRef(
+      kind: Window,
+      window: window,
+      isFocused: isFocused
+    )
+  initTree(newLayout)
+
+proc newContainerLayout*(children: seq[DesktopLayout], growDirection: Direction,
+                        width, height: int): DesktopLayout =
+  let newLayout = DesktopLayoutRef(
+      kind: Container,
+      growDirection: growDirection
+    )
+  initTree(newLayout, children)
 
 proc allWindows*(self: DesktopLayout): seq[DesktopLayout] =
-  if self.kind == Window:
-    return @[self]
-  else:
-    return self.children.map(allWindows).foldl(a & b)
+  self.all do (node: DesktopLayout) -> bool:
+    node.value.kind == Window
 
 proc isFocused*(self: DesktopLayout): bool =
-  if self.kind == Window:
-    return self.isFocused
+  if self.value.kind == Window:
+    result = self.value.isFocused
   else:
-    return self.children.anyIt(it.isFocused)
+    result = self.children.anyIt(it.isFocused)
 
-
-proc setDimensions*(layout: DesktopLayout, width, height, x, y: int) =
-  layout.width = width
-  layout.height = height
-  layout.x = x
-  layout.y = y
-  if layout.kind == Container:
-    let mainAxisLen = if layout.growDirection == Row: layout.width
-                      else: layout.height
-    let childMainAxisLen = int floor mainAxisLen / layout.children.len
-    for i, child in layout.children:
-      let prevChild = if i == 0: DesktopLayout()
-                      else: layout.children[i-1]
-      if layout.growDirection == Row:
-        child.setDimensions(childMainAxisLen, height,
-                            prevChild.x + prevChild.width, y)
+proc setDimensionsRecurse(self: DesktopLayout, width, height, x, y: int = 0) =
+  self.value.width = width
+  self.value.height = height
+  self.value.x = x
+  self.value.y = y
+  if self.value.kind == Container:
+    let mainAxisLen = if self.value.growDirection == Row: self.value.width
+                      else: self.value.height
+    let childMainAxisLen = int floor mainAxisLen / self.children.len
+    for i, child in self.children:
+      let prevChild = if i == 0: self
+                                     else: self.children[i-1]
+      if self.value.growDirection == Row:
+        child.setDimensionsRecurse(childMainAxisLen, height,
+                                  prevChild.value.x + prevChild.value.width, y)
       else:
-        child.setDimensions(width, childMainAxisLen, x,
-                            prevChild.y + prevChild.height)
+        child.setDimensionsRecurse(width, childMainAxisLen, x,
+                                  prevChild.value.y + prevChild.value.height)
 
-
-proc first*(self: DesktopLayout, cond: (DesktopLayout)->bool): Option[DesktopLayout] =
-  if cond self:
-    result = some self
-  elif self.kind == Container:
-    for child in self.children:
-      result = child.first(cond)
-      if result.isSome: break
-
-proc walk*(self: DesktopLayout, kind: LayoutKind, operation: (DesktopLayout)->bool) =
-  if self.kind == kind and not operation self: return
-  elif self.kind == Container:
-    for child in self.children:
-      walk child, kind, operation
-
-
-
+proc setDimensions(self: DesktopLayout) =
+  self.setDimensionsRecurse(self.value.width, self.value.height, self.value.x, self.value.y)
 
 
 converter intToInt32(x: int): int32 = int32 x
 
 proc render*(self: DesktopLayout) =
-  let allWindows = self.allWindows
+  self.setDimensions()
+  let allWindows = self.allWindows.mapIt(it.value)
   var posStruct = BeginDeferWindowPos(int32 allWindows.len)
   for i, winLayout in allWindows:
       let prevWindow = if i == 0: HWND_BOTTOM
