@@ -9,7 +9,8 @@ import strutils
 import logging
 import tables
 import sets
-import tree
+import treenode
+import options
 
 var logger = newConsoleLogger()
 addHandler(logger)
@@ -26,15 +27,20 @@ debug "Windows detected: ", $windows.mapIt(it.title)
 
 
 let (desktopWidth, desktopHeight) = getWorkAreaSize()
-let windowLayouts = collect(newSeq):
-  for i, win in windows:
-    newWindowLayout(win,i == 0)
-var topLevelLayout = newContainerLayout(
-  windowLayouts,
+
+var topLevelLayout = newDesktop(
   Row,
   desktopWidth,
   desktopHeight
 )
+
+topLevelLayout.add windows.map(toWindowLayout)
+
+topLevelLayout.walkIt:
+  if it.value.kind == LayoutKind.Window:
+    SetForegroundWindow(it.value.window.nativeHandle)
+    it.value.isFocused = true
+    return true
 
 topLevelLayout.render()
 
@@ -45,25 +51,37 @@ proc windowStateChanged(newWindow: Window, eventType: WindowStateChangeEvent) =
       if newWindow.isVisible:
         debug("Windows opened: ", newWindow.title)
         # newWindow.isResizeable = false
-        var focusedContainer = topLevelLayout.first do (layout: DesktopLayout)->bool:
-           layout.value.kind == Container and isFocused(layout)
+        let containerOpt = topLevelLayout.firstIt:
+          it.value.kind == Container and isFocused(it)
+        if containerOpt.isSome:
+          let container = containerOpt.get()
+          topLevelLayout.walkIt:
+            if it.value.kind == LayoutKind.Window and isFocused(it):
+              it.value.isFocused = false
+          let newNode = container.add toWindowLayout newWindow
+          if newNode.value.kind == LayoutKind.Window:
+            newNode.value.isFocused = true
+          render container
 
-        focusedContainer.add(newWindow)
-        # topLevelLayout.children = topLevelLayout.children & newWindowLayout(newWindow)
     of Closed:
-      topLevelLayout.all do (layout: DesktopLayout)->bool:
-        layout.children.keepItIf((it.value.kind == LayoutKind.Window and
-                                  it.value.window.nativeHandle.IsWindow.bool) or
-                                  it.value.kind == LayoutKind.Container
-                                )
-        result = true
-  topLevelLayout.render()
+      let nodeOpts = topLevelLayout.firstIt:
+        it.value.kind == LayoutKind.Window and
+        not it.value.window.nativeHandle.IsWindow.bool
+      if nodeOpts.isSome:
+        let node = nodeOpts.get()
+        node.dropDesktop()
+        if not node.isRootNode:
+          render node.parent
+
+
+
+
 
 winAuto.onWindowStateChanged(windowStateChanged)
 
 
 proc resetAllStyles() {.noconv.} =
-  for windowLayout in topLevelLayout.allWindows:
+  for windowLayout in topLevelLayout.allIt(it.value.kind == LayoutKind.Window):
     let window = windowLayout.value.window
     echo window.title
     window.resetStyles()
@@ -97,10 +115,17 @@ proc HookCallback(nCode: int32, wParam: WPARAM, lParam: LPARAM): LRESULT {.stdca
           keysPressed.incl(kbdstruct.vkCode)
           if keysPressed == [VK_LWIN, virtualCodes['E']].toOrderedSet:
             topLevelLayout.value.growDirection = if topLevelLayout.value.growDirection == Column:
-                                            Row
-                                           else: Column
+                                                    Row
+                                                  else: Column
             topLevelLayout.render()
             return 1
+          if keysPressed == [VK_LWIN, VK_LEFT].toOrderedSet:
+            let containerOpt = topLevelLayout.firstIt:
+              it.value.kind == Container and isFocused(it)
+            if containerOpt.isSome:
+              let container = containerOpt.get()
+              
+
 
         of WM_KEYUP, WM_SYSKEYUP:
           keysPressed.excl(kbdstruct.vkCode)

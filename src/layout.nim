@@ -1,10 +1,11 @@
 import winim/com
 import window
+import treenode
+import std/with
 import math
-import sequtils
 import sugar
+import sequtils
 import options
-import tree
 type
   LayoutKind* = enum
     Window, Container
@@ -12,7 +13,7 @@ type
   Direction* = enum
     Row, Column
 
-  DesktopLayoutRef* = ref object
+  Layout* = object
     width*, height*: int
     x*, y*: int
     case kind*: LayoutKind
@@ -21,62 +22,37 @@ type
         isFocused*: bool
       of Container:
         growDirection*: Direction
-  DesktopLayout* = Tree[DesktopLayoutRef]
-
-proc newWindowLayout*(window: Window, isFocused = false): DesktopLayout =
-  let newLayout = DesktopLayoutRef(
-      kind: Window,
-      window: window,
-      isFocused: isFocused
-    )
-  initTree(newLayout)
-
-proc newContainerLayout*(children: seq[DesktopLayout], growDirection: Direction,
-                        width, height: int): DesktopLayout =
-  let newLayout = DesktopLayoutRef(
-      kind: Container,
-      growDirection: growDirection
-    )
-  initTree(newLayout, children)
-
-proc allWindows*(self: DesktopLayout): seq[DesktopLayout] =
-  self.all do (node: DesktopLayout) -> bool:
-    node.value.kind == Window
-
-proc isFocused*(self: DesktopLayout): bool =
-  if self.value.kind == Window:
-    result = self.value.isFocused
-  else:
-    result = self.children.anyIt(it.isFocused)
-
-proc setDimensionsRecurse(self: DesktopLayout, width, height, x, y: int = 0) =
-  self.value.width = width
-  self.value.height = height
-  self.value.x = x
-  self.value.y = y
-  if self.value.kind == Container:
-    let mainAxisLen = if self.value.growDirection == Row: self.value.width
-                      else: self.value.height
-    let childMainAxisLen = int floor mainAxisLen / self.children.len
-    for i, child in self.children:
-      let prevChild = if i == 0: self
-                                     else: self.children[i-1]
-      if self.value.growDirection == Row:
-        child.setDimensionsRecurse(childMainAxisLen, height,
-                                  prevChild.value.x + prevChild.value.width, y)
-      else:
-        child.setDimensionsRecurse(width, childMainAxisLen, x,
-                                  prevChild.value.y + prevChild.value.height)
-
-proc setDimensions(self: DesktopLayout) =
-  self.setDimensionsRecurse(self.value.width, self.value.height, self.value.x, self.value.y)
-
+  Desktop* = TreeNode[Layout]
 
 converter intToInt32(x: int): int32 = int32 x
 
-proc render*(self: DesktopLayout) =
-  self.setDimensions()
-  let allWindows = self.allWindows.mapIt(it.value)
+proc balanceDesktopDimensions(self: Desktop) =
+  let borderThickness = GetSystemMetrics(SM_CXSIZEFRAME)
+  let halfBorder = int round borderThickness/2
+  self.walkIt:
+    if it.value.kind == Container:
+      let newWidth = int round it.value.width / it.children.len
+      let newHeight = int round it.value.height / it.children.len
+      let growDir = it.value.growDirection
+      for i, child in it.children:
+        case growDir:
+          of Row:
+            with child.value:
+                width = newWidth + borderThickness + halfBorder
+                height = it.value.height + halfBorder
+                x = i * newWidth
+                y = it.value.y
+          of Column:
+            with child.value:
+                width = it.value.width
+                height = newHeight + halfBorder
+                x = it.value.x
+                y = i * newHeight
+
+proc render*(self: Desktop) =
+  self.balanceDesktopDimensions()
+  let allWindows = self.allIt(it.value.kind == Window).mapIt(it.value)
+
   var posStruct = BeginDeferWindowPos(int32 allWindows.len)
   for i, winLayout in allWindows:
       let prevWindow = if i == 0: HWND_BOTTOM
@@ -87,3 +63,35 @@ proc render*(self: DesktopLayout) =
                                           SWP_SHOWWINDOW)
 
   posStruct.EndDeferWindowPos()
+
+proc newDesktop*(growDirection: Direction, width, height: int): Desktop =
+  initTreeNode(Layout(
+      kind: Container,
+      growDirection: growDirection,
+      width: width,
+      height: height
+    ))
+
+proc dropDesktop*(self: Desktop) =
+  self.drop()
+  if not self.isRootNode:
+    if self.parent.children.len == 0:
+      self.parent.dropDesktop
+    else:
+      self.parent.children[0].value.isFocused = true
+
+# proc leftDesktop*(self: Desktop): Option[Desktop] =
+#   if not self.isRootNode:
+#     let index = self.parent.children.find self
+#     let leftIndex = index - 1
+#     if leftIndex >= 0:
+#       some self.parent.children[leftIndex]
+
+converter toWindowLayout*(newWindow: Window): Layout =
+  Layout(window: newWindow, kind: Window, isFocused: true)
+
+proc isFocused*(self: Desktop): bool =
+  if self.value.kind == Window:
+    result = self.value.isFocused
+  else:
+    result = self.children.anyIt(it.isFocused)

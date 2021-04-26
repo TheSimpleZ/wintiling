@@ -41,7 +41,7 @@ proc `isResizeable=`*(self: Window, value: bool) =
   self.nativeStyle = newStyle
 
 proc isResizeable*(self: Window): bool =
-  (self.nativeHandle.GetWindowLongPtr(GWL_STYLE) and WS_THICKFRAME) > 0
+  (self.nativeStyle and WS_THICKFRAME) > 0
 
 proc isVisible*(self: Window): bool =
   self.nativeHandle.isActuallyVisible

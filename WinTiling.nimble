@@ -17,4 +17,4 @@ requires "winim >= 3.6.0"
 #   exec "nim c --outDir:bin/ -d:useNimRtl --app:lib src/WinTilingHooks.nim"
 
 task test, "Runs the test suite":
-  exec "testament all"
+  exec "testament --megatest:off all"
