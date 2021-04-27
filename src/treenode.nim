@@ -3,6 +3,7 @@ import sequtils
 import macros
 import sugar
 import options
+import lists
 type
   TreeNode*[T] = ref object of RootObj
     value*: T

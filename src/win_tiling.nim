@@ -49,7 +49,7 @@ proc windowStateChanged(newWindow: Window, eventType: WindowStateChangeEvent) =
   case eventType:
     of Opened:
       if newWindow.isVisible:
-        debug("Windows opened: ", newWindow.title)
+        # debug("Windows opened: ", newWindow.title)
         # newWindow.isResizeable = false
         let containerOpt = topLevelLayout.firstIt:
           it.value.kind == Container and isFocused(it)
@@ -105,7 +105,6 @@ const
 
 var keysPressed: OrderedSet[int]
 
-
 proc HookCallback(nCode: int32, wParam: WPARAM, lParam: LPARAM): LRESULT {.stdcall.} =
     if nCode == HC_ACTION:
       var kbdstruct: PKBDLLHOOKSTRUCT = cast[ptr KBDLLHOOKSTRUCT](lparam)
@@ -119,13 +118,18 @@ proc HookCallback(nCode: int32, wParam: WPARAM, lParam: LPARAM): LRESULT {.stdca
                                                   else: Column
             topLevelLayout.render()
             return 1
-          if keysPressed == [VK_LWIN, VK_LEFT].toOrderedSet:
-            let containerOpt = topLevelLayout.firstIt:
-              it.value.kind == Container and isFocused(it)
-            if containerOpt.isSome:
-              let container = containerOpt.get()
-              
+          if keysPressed == [VK_LWIN, VK_LEFT].toOrderedSet or keysPressed == [VK_LWIN, VK_RIGHT].toOrderedSet:
+            let activeWindow = GetForegroundWindow()
+            # This will be refactored. Moves focus left and right
+            let allWindows = topLevelLayout.allIt(it.value.kind == LayoutKind.Window).mapIt(it.value.window)
+            let currentFocus = allWindows.mapIt(it.nativeHandle).find(activeWindow)
+            let newFocus = if VK_RIGHT in keysPressed: min(currentFocus+1, allWindows.len-1)
+                          else: max(currentFocus-1, 0)
+            let targetHwnd = allWindows[newFocus]
 
+            targetHwnd.setForegroundWindow()
+
+            return 1
 
         of WM_KEYUP, WM_SYSKEYUP:
           keysPressed.excl(kbdstruct.vkCode)
@@ -139,13 +143,5 @@ PostMessage(0, 0, 0, 0) # activating process message queue (without any window)
 
 
 
-
 var msg: MSG
-while GetMessage(msg.addr, 0, 0, 0):
-     if msg.message == WM_HOTKEY:
-        info "Hotkey!"
-
-echo "running"
-# discard getch()
-# while true:
-#   discard
+while GetMessage(msg.addr, 0, 0, 0): discard

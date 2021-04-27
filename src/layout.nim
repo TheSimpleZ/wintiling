@@ -80,12 +80,12 @@ proc dropDesktop*(self: Desktop) =
     else:
       self.parent.children[0].value.isFocused = true
 
-# proc leftDesktop*(self: Desktop): Option[Desktop] =
-#   if not self.isRootNode:
-#     let index = self.parent.children.find self
-#     let leftIndex = index - 1
-#     if leftIndex >= 0:
-#       some self.parent.children[leftIndex]
+proc leftDesktop*(self: Desktop): Option[Desktop] =
+  if not self.isRootNode:
+    let index = self.parent.children.find self
+    let leftIndex = index - 1
+    if leftIndex >= 0:
+      return some self.parent.children[leftIndex]
 
 converter toWindowLayout*(newWindow: Window): Layout =
   Layout(window: newWindow, kind: Window, isFocused: true)
