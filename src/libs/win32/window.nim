@@ -5,10 +5,12 @@ import is_actually_visible
 type Window* = object
   nativeHandle*: HWND
   originalStyle: LONG_PTR
+  originalTitle*: string
 
 template raiseOsError(msg: string) =
   raise newException(OSError, msg & ": " & GetLastError().toHex)
 
+proc `==`*(a,b: Window): bool = a.nativeHandle == b.nativeHandle
 
 proc `nativeStyle=`(self: Window, styleVar: LONG_PTR) =
   if self.nativeHandle.SetWindowLongPtr(GWL_STYLE, styleVar).FAILED:
@@ -21,27 +23,32 @@ proc `nativeStyle=`(self: Window, styleVar: LONG_PTR) =
 proc nativeStyle(self: Window): LONG_PTR =
   self.nativeHandle.GetWindowLongPtr(GWL_STYLE)
 
-proc initWindow*(selfHandle: HWND): Window =
-  let style = selfHandle.GetWindowLongPtr(GWL_STYLE)
-  Window(nativeHandle: selfHandle, originalStyle: style)
-
-proc resetStyles*(self: Window) =
-  self.nativeStyle = self.originalStyle
-
 proc title*(self: Window): string =
   let length = self.nativeHandle.GetWindowTextLength + 1
   var name = newWString(length)
   self.nativeHandle.GetWindowText(name, length)
   result = $name.nullTerminated
 
-proc `isResizeable=`*(self: Window, value: bool) =
-  let style = self.nativeStyle
-  var newStyle = if value: style and WS_THICKFRAME
-                 else: style xor WS_THICKFRAME
-  self.nativeStyle = newStyle
+proc initWindow*(selfHandle: HWND): Window =
+  result = Window(nativeHandle: selfHandle)
+  result.originalStyle = result.nativeStyle
+  result.originalTitle = result.title
 
-proc isResizeable*(self: Window): bool =
-  (self.nativeStyle and WS_THICKFRAME) > 0
+
+
+proc resetStyles*(self: Window) =
+  self.nativeStyle = self.originalStyle
+
+
+
+# proc `isResizeable=`*(self: Window, value: bool) =
+#   let style = self.nativeStyle
+#   var newStyle = if value: style and WS_THICKFRAME
+#                  else: style xor WS_THICKFRAME
+#   self.nativeStyle = newStyle
+
+# proc isResizeable*(self: Window): bool =
+#   (self.nativeStyle and WS_THICKFRAME) > 0
 
 proc isVisible*(self: Window): bool =
   self.nativeHandle.isActuallyVisible
@@ -63,3 +70,6 @@ proc setForegroundWindow*(self: Window) =
   sendKey(VK_MENU)
   sendKey(VK_MENU, KEYEVENTF_KEYUP)
   SetForegroundWindow(self.nativeHandle)
+
+proc getForegroundWindow*(): Window =
+  initWindow GetForegroundWindow()

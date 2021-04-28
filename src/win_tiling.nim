@@ -1,15 +1,14 @@
 import winim/com
-import win_automation
-import window
+import libs/win32/win_automation
+import libs/win32/window
 import std/exitprocs
 import sequtils
-import layout
-import sugar
+import libs/layout
 import strutils
 import logging
 import tables
 import sets
-import treenode
+import libs/treenode
 import options
 
 var logger = newConsoleLogger()
@@ -17,14 +16,9 @@ addHandler(logger)
 let winAuto = newWinAutomation()
 
 
-var windows = getAllVisibleWindows().filterIt(not it.title.contains("WinTiling"))
+var allOpenWindows = getAllVisibleWindows().filterIt(not it.title.contains("WinTiling"))
 
-debug "Windows detected: ", $windows.mapIt(it.title)
-
-# for win in windows:
-#   win.isResizeable = false
-
-
+debug "Windows detected: ", $allOpenWindows.mapIt(it.title)
 
 let (desktopWidth, desktopHeight) = getWorkAreaSize()
 
@@ -34,13 +28,7 @@ var topLevelLayout = newDesktop(
   desktopHeight
 )
 
-topLevelLayout.add windows.map(toWindowLayout)
-
-topLevelLayout.walkIt:
-  if it.value.kind == LayoutKind.Window:
-    SetForegroundWindow(it.value.window.nativeHandle)
-    it.value.isFocused = true
-    return true
+topLevelLayout.add allOpenWindows.map(toWindowLayout)
 
 topLevelLayout.render()
 
@@ -49,30 +37,21 @@ proc windowStateChanged(newWindow: Window, eventType: WindowStateChangeEvent) =
   case eventType:
     of Opened:
       if newWindow.isVisible:
-        # debug("Windows opened: ", newWindow.title)
-        # newWindow.isResizeable = false
-        let containerOpt = topLevelLayout.firstIt:
-          it.value.kind == Container and isFocused(it)
-        if containerOpt.isSome:
-          let container = containerOpt.get()
-          topLevelLayout.walkIt:
-            if it.value.kind == LayoutKind.Window and isFocused(it):
-              it.value.isFocused = false
-          let newNode = container.add toWindowLayout newWindow
-          if newNode.value.kind == LayoutKind.Window:
-            newNode.value.isFocused = true
-          render container
+        debug("Windows opened: ", newWindow.title)
+        let focusedWindowOpts = topLevelLayout.findFocusedWindow()
 
+        let container = if focusedWindowOpts.isSome:
+                          focusedWindowOpts.get().parent
+                        else: topLevelLayout
+        container.add newWindow.toWindowLayout
+        render container
     of Closed:
-      let nodeOpts = topLevelLayout.firstIt:
-        it.value.kind == LayoutKind.Window and
-        not it.value.window.nativeHandle.IsWindow.bool
-      if nodeOpts.isSome:
-        let node = nodeOpts.get()
-        node.dropDesktop()
-        if not node.isRootNode:
-          render node.parent
-
+      let invisibleWindows = topLevelLayout.findInvisibleWindows()
+      for desktop in invisibleWindows:
+        debug("Windows closed: ", desktop.value.window.originalTitle)
+        desktop.dropDesktop()
+      if invisibleWindows.len > 0:
+        render topLevelLayout
 
 
 
@@ -81,10 +60,9 @@ winAuto.onWindowStateChanged(windowStateChanged)
 
 
 proc resetAllStyles() {.noconv.} =
-  for windowLayout in topLevelLayout.allIt(it.value.kind == LayoutKind.Window):
-    let window = windowLayout.value.window
-    echo window.title
-    window.resetStyles()
+  topLevelLayout.walkIt:
+    if it.value.kind == LayoutKind.Window:
+      it.value.window.resetStyles()
   quit()
 
 addExitProc(resetAllStyles)
@@ -92,16 +70,27 @@ setControlCHook(resetAllStyles)
 
 
 
-const
-  keys = {'A'..'Z'}.toSeq
-  codes = {0x41..0x5A}.toSeq
+const VirtualCodes = block:
+    let
+      keys = {'A'..'Z'}.toSeq
+      codes = {0x41..0x5A}.toSeq
 
-  virtualCodes = block:
     var codeTable = initTable[char, int]()
     for pairs in zip(keys, codes):
       let (key, code) = pairs
       codeTable[key] = code
+
     codeTable
+
+
+
+const hotkeys = {
+  [VK_LWIN, VirtualCodes['E']].toOrderedSet: proc () =
+    echo "hello"
+    topLevelLayout.transpose(),
+  [VK_LWIN, VK_LEFT].toOrderedSet: proc () = discard,
+  [VK_LWIN, VK_RIGHT].toOrderedSet: proc () = discard
+}.toTable
 
 var keysPressed: OrderedSet[int]
 
@@ -112,17 +101,15 @@ proc HookCallback(nCode: int32, wParam: WPARAM, lParam: LPARAM): LRESULT {.stdca
         of WM_KEYDOWN, WM_SYSKEYDOWN:
           # if byte(kbdstruct.vkCode) == VK_LWIN:
           keysPressed.incl(kbdstruct.vkCode)
-          if keysPressed == [VK_LWIN, virtualCodes['E']].toOrderedSet:
-            topLevelLayout.value.growDirection = if topLevelLayout.value.growDirection == Column:
-                                                    Row
-                                                  else: Column
+          if keysPressed in hotkeys:
+            hotkeys[keysPressed]()
             topLevelLayout.render()
             return 1
           if keysPressed == [VK_LWIN, VK_LEFT].toOrderedSet or keysPressed == [VK_LWIN, VK_RIGHT].toOrderedSet:
-            let activeWindow = GetForegroundWindow()
+            let activeWindow = getForegroundWindow()
             # This will be refactored. Moves focus left and right
             let allWindows = topLevelLayout.allIt(it.value.kind == LayoutKind.Window).mapIt(it.value.window)
-            let currentFocus = allWindows.mapIt(it.nativeHandle).find(activeWindow)
+            let currentFocus = allWindows.find(activeWindow)
             let newFocus = if VK_RIGHT in keysPressed: min(currentFocus+1, allWindows.len-1)
                           else: max(currentFocus-1, 0)
             let targetHwnd = allWindows[newFocus]

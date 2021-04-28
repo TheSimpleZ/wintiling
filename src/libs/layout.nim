@@ -1,9 +1,8 @@
 import winim/com
-import window
+import win32/window
 import treenode
 import std/with
 import math
-import sugar
 import sequtils
 import options
 type
@@ -19,12 +18,17 @@ type
     case kind*: LayoutKind
       of Window:
         window*: Window
-        isFocused*: bool
       of Container:
         growDirection*: Direction
   Desktop* = TreeNode[Layout]
 
 converter intToInt32(x: int): int32 = int32 x
+
+proc isWindow*(self: Desktop): bool = self.value.kind == Window
+proc isContainer*(self: Desktop): bool = self.value.kind == Container
+proc isRow*(self: Desktop): bool =
+  self.isContainer and self.value.growDirection == Row
+
 
 proc balanceDesktopDimensions(self: Desktop) =
   let borderThickness = GetSystemMetrics(SM_CXSIZEFRAME)
@@ -75,23 +79,21 @@ proc newDesktop*(growDirection: Direction, width, height: int): Desktop =
 proc dropDesktop*(self: Desktop) =
   self.drop()
   if not self.isRootNode:
-    if self.parent.children.len == 0:
+    if self.parent.isContainer and self.parent.children.len == 0:
       self.parent.dropDesktop
-    else:
-      self.parent.children[0].value.isFocused = true
 
-proc leftDesktop*(self: Desktop): Option[Desktop] =
-  if not self.isRootNode:
-    let index = self.parent.children.find self
-    let leftIndex = index - 1
-    if leftIndex >= 0:
-      return some self.parent.children[leftIndex]
 
 converter toWindowLayout*(newWindow: Window): Layout =
-  Layout(window: newWindow, kind: Window, isFocused: true)
+  Layout(window: newWindow, kind: Window)
 
-proc isFocused*(self: Desktop): bool =
-  if self.value.kind == Window:
-    result = self.value.isFocused
-  else:
-    result = self.children.anyIt(it.isFocused)
+proc findFocusedWindow*(self: Desktop): Option[Desktop] =
+  let foregroundWindow = getForegroundWindow()
+  self.firstIt:
+    it.value.kind == Window and it.value.window == foregroundWindow
+
+proc findInvisibleWindows*(self: Desktop): seq[Desktop] =
+  self.allIt:
+    it.isWindow() and not it.value.window.isVisible
+
+proc transpose*(self: Desktop) =
+  self.value.growDirection = if self.isRow: Column else: Row
