@@ -1,15 +1,18 @@
 import winim/com
-import libs/win32/win_automation
-import libs/win32/window
+import lib/win32/win_automation
+import lib/win32/window
+import lib/win32/keyboard
 import std/exitprocs
 import sequtils
-import libs/layout
+import lib/layout
 import strutils
 import logging
 import tables
 import sets
-import libs/treenode
+import lib/treenode
 import options
+import lib/hotkeys as hkMacro
+import config/hotkeys as hkConfig
 
 var logger = newConsoleLogger()
 addHandler(logger)
@@ -69,66 +72,22 @@ addExitProc(resetAllStyles)
 setControlCHook(resetAllStyles)
 
 
-
-const VirtualCodes = block:
-    let
-      keys = {'A'..'Z'}.toSeq
-      codes = {0x41..0x5A}.toSeq
-
-    var codeTable = initTable[char, int]()
-    for pairs in zip(keys, codes):
-      let (key, code) = pairs
-      codeTable[key] = code
-
-    codeTable
+var keysPressed: HashSet[int]
 
 
-
-const hotkeys = {
-  [VK_LWIN, VirtualCodes['E']].toOrderedSet: proc () =
-    echo "hello"
-    topLevelLayout.transpose(),
-  [VK_LWIN, VK_LEFT].toOrderedSet: proc () = discard,
-  [VK_LWIN, VK_RIGHT].toOrderedSet: proc () = discard
-}.toTable
-
-var keysPressed: OrderedSet[int]
-
-proc HookCallback(nCode: int32, wParam: WPARAM, lParam: LPARAM): LRESULT {.stdcall.} =
-    if nCode == HC_ACTION:
-      var kbdstruct: PKBDLLHOOKSTRUCT = cast[ptr KBDLLHOOKSTRUCT](lparam)
-      case wParam:
-        of WM_KEYDOWN, WM_SYSKEYDOWN:
-          # if byte(kbdstruct.vkCode) == VK_LWIN:
-          keysPressed.incl(kbdstruct.vkCode)
-          if keysPressed in hotkeys:
-            hotkeys[keysPressed]()
+proc onKeyStateChanged(key: int, eventType: KeyEvent): bool =
+  case eventType:
+    of KeyUp:
+      keysPressed.excl(key)
+    of KeyDown:
+      keysPressed.incl(key)
+      if keysPressed in hotkeys:
+        let opts = topLevelLayout.findFocusedWindow()
+        if opts.isSome():
+          let win = opts.get()
+          if hotkeys[keysPressed](topLevelLayout, win):
             topLevelLayout.render()
-            return 1
-          if keysPressed == [VK_LWIN, VK_LEFT].toOrderedSet or keysPressed == [VK_LWIN, VK_RIGHT].toOrderedSet:
-            let activeWindow = getForegroundWindow()
-            # This will be refactored. Moves focus left and right
-            let allWindows = topLevelLayout.allIt(it.value.kind == LayoutKind.Window).mapIt(it.value.window)
-            let currentFocus = allWindows.find(activeWindow)
-            let newFocus = if VK_RIGHT in keysPressed: min(currentFocus+1, allWindows.len-1)
-                          else: max(currentFocus-1, 0)
-            let targetHwnd = allWindows[newFocus]
+        return true
 
-            targetHwnd.setForegroundWindow()
-
-            return 1
-
-        of WM_KEYUP, WM_SYSKEYUP:
-          keysPressed.excl(kbdstruct.vkCode)
-        else: discard
-
-    return CallNextHookEx(0, nCode, wParam, lParam)
-
-SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC) HookCallback, 0,  0)
-PostMessage(0, 0, 0, 0) # activating process message queue (without any window)
-# But if we want to stop we need to terminate process in Task Manager!
-
-
-
-var msg: MSG
-while GetMessage(msg.addr, 0, 0, 0): discard
+setGlobalKeyboardHook(onKeyStateChanged)
+runMessageQueueForever()

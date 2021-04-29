@@ -95,5 +95,51 @@ proc findInvisibleWindows*(self: Desktop): seq[Desktop] =
   self.allIt:
     it.isWindow() and not it.value.window.isVisible
 
-proc transpose*(self: Desktop) =
-  self.value.growDirection = if self.isRow: Column else: Row
+proc transpose*(root, self: Desktop): bool =
+  if self.isContainer:
+    self.value.growDirection = if self.isRow: Column else: Row
+    return true
+
+
+proc moveBack*(root, self: Desktop): bool =
+  if not self.isRootNode:
+    let index = self.parent.children.find(self)
+    if index > 0:
+      let leftIndex = index - 1
+      let sibling = self.parent.children[leftIndex]
+      self.parent.children[leftIndex] = self
+      self.parent.children[index] = sibling
+      return true
+
+
+
+proc moveForward*(root, self: Desktop): bool =
+  if not self.isRootNode:
+    let index = self.parent.children.find(self)
+    if index < self.parent.children.len-1:
+      let rightIndex = index + 1
+      let sibling = self.parent.children[rightIndex]
+      self.parent.children[rightIndex] = self
+      self.parent.children[index] = sibling
+      return true
+
+proc moveWindowFocusBack*(root, self: Desktop): bool =
+  let activeWindow = getForegroundWindow()
+  let allWindows = root.allIt(it.isWindow).mapIt(it.value.window)
+  let currentFocus = allWindows.find(activeWindow)
+  let newFocus = max(currentFocus-1, 0)
+  let targetHwnd = allWindows[newFocus]
+
+  targetHwnd.setForegroundWindow()
+
+
+
+proc moveWindowFocusForward*(root, self: Desktop): bool =
+  let activeWindow = getForegroundWindow()
+  let allWindows = root.allIt(it.isWindow).mapIt(it.value.window)
+  let currentFocus = allWindows.find(activeWindow)
+  let newFocus = min(currentFocus+1, allWindows.len-1)
+
+  let targetHwnd = allWindows[newFocus]
+
+  targetHwnd.setForegroundWindow()

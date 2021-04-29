@@ -12,6 +12,7 @@ binDir        = "bin"
 
 requires "nim >= 1.4.4"
 requires "winim >= 3.6.0"
+requires "macroutils >= 1.2.0"
 
 # before build:
 #   exec "nim c --outDir:bin/ -d:useNimRtl --app:lib src/WinTilingHooks.nim"

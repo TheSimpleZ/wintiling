@@ -3,7 +3,6 @@ import ui_automation_event_handler
 import is_actually_visible
 import sequtils
 import window
-
 converter pointerConverter(x: ptr): ptr PVOID = cast[ptr PVOID](x)
 converter UIA_HWNDToHWND*(x: UIA_HWND): HWND = cast[HWND](x)
 

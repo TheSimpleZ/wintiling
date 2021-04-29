@@ -2,7 +2,7 @@ nimcache/
 nimblecache/
 htmldocs/
 testresults/**/*
-outputGotten.txt
+output*.txt
 bin
 
 *.exe
