@@ -1,6 +1,7 @@
 import winim/com
 import strformat
 import is_actually_visible
+import keyboard
 
 type Window* = object
   nativeHandle*: HWND
@@ -53,22 +54,10 @@ proc resetStyles*(self: Window) =
 proc isVisible*(self: Window): bool =
   self.nativeHandle.isActuallyVisible
 
-proc initKeyboardInput(virtualKeyCode: uint16, flags: int32 = 0): INPUT =
-  result.`type` = INPUT_KEYBOARD
-  result.ki.wVk = virtualKeyCode
-  result.ki.dwFlags = flags
-
-
-proc send(self: INPUT) =
-  SendInput(UINT 1, cast[LPINPUT](&self), int32 sizeof INPUT)
-
-proc sendKey(virtualKeyCode: uint16, flags: int32 = 0) =
-  var altDown = initKeyboardInput(VK_MENU, flags)
-  altDown.send()
 
 proc setForegroundWindow*(self: Window) =
-  sendKey(VK_MENU)
-  sendKey(VK_MENU, KEYEVENTF_KEYUP)
+  sendKey(VK_RMENU)
+  sendKey(VK_RMENU, KEYEVENTF_KEYUP)
   SetForegroundWindow(self.nativeHandle)
 
 proc getForegroundWindow*(): Window =

@@ -14,7 +14,8 @@ import options
 import lib/hotkeys as hkMacro
 import config/hotkeys as hkConfig
 
-var logger = newConsoleLogger()
+var logger = newConsoleLogger(fmtStr="[$time] - $levelname: ")
+
 addHandler(logger)
 let winAuto = newWinAutomation()
 
@@ -49,11 +50,13 @@ proc windowStateChanged(newWindow: Window, eventType: WindowStateChangeEvent) =
         container.add newWindow.toWindowLayout
         render container
     of Closed:
-      let invisibleWindows = topLevelLayout.findInvisibleWindows()
+      let invisibleWindows = topLevelLayout.findWindows(visible = false)
       for desktop in invisibleWindows:
-        debug("Windows closed: ", desktop.value.window.originalTitle)
+        if desktop.isWindow:
+          debug("Windows closed: ", desktop.value.window.originalTitle)
         desktop.dropDesktop()
       if invisibleWindows.len > 0:
+        # echo invisibleWindows
         render topLevelLayout
 
 

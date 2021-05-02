@@ -12,15 +12,43 @@ type
     of false: parent*: TreeNode[T]
     of true: discard
 
+proc `$`*(self: TreeNode, indent = "", last = true): string =
+  let name = if self.isWindow: self.value.window.title
+             else: "Container"
+  let nextIndent = if last: "   "
+                   else: "|  "
+  result = indent & "+- " & name & '\n'
+
+  for i, child in self.children:
+    result.add `$`(child, indent & nextIndent, i == self.children.len)
+
 proc initTreeNode*[T](nodeVal: T): TreeNode[T] =
   result = TreeNode[T](value: nodeVal, isRootNode: true)
 
 
-proc initTreeNode[T](nodeVal: T, parent: TreeNode[T]): TreeNode[T] =
-  result = TreeNode[T](value: nodeVal, isRootNode: false, parent: parent)
+proc initTreeNode*[T](nodeVal: T, parent: TreeNode[T],
+                    children: seq[TreeNode[T]] = @[]): TreeNode[T] =
+  result = TreeNode[T](
+    value: nodeVal,
+    isRootNode: false,
+    parent: parent,
+    children: children
+  )
+  for child in result.children:
+    child.parent = result
 
 proc isRootNode*(self: TreeNode): bool =
   self.isRootNode
+
+proc insert*[T](self: TreeNode[T], value: TreeNode[T], index: int) {.discardable.} =
+  if not value.isRootNode:
+    value.parent = self
+    self.children.insert(value, clamp(index, 0, self.children.len))
+
+proc add*(self: TreeNode, value: TreeNode): TreeNode {.discardable.} =
+  let newNode = initTreeNode(value.value, self, value.children)
+  self.children.add(newNode)
+
 
 proc add*[T](self: TreeNode[T], value: T): TreeNode[T] {.discardable.} =
   ## Add values as new nodes to self
@@ -60,5 +88,4 @@ template allIt*[T](self: TreeNode[T], predicate: untyped): seq[TreeNode[T]] =
   self.walkIt:
     if predicate:
       matchinNodes.add it
-      return true
   matchinNodes

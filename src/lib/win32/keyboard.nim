@@ -19,9 +19,10 @@ const VirtualCodes* = block:
 
     codeTable
 
-const specialKeys = [VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN, VK_RCONTROL, VK_RMENU, VK_LWIN, VK_RWIN, VK_APPS, VK_PRIOR, VK_NEXT, VK_END, VK_HOME, VK_INSERT, VK_DELETE, VK_DIVIDE, VK_NUMLOCK]
+const keyEvents = [WM_KEYDOWN, WM_SYSKEYDOWN, WM_KEYUP, WM_SYSKEYUP]
+# const specialKeys = [VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN, VK_RCONTROL, VK_RMENU, VK_LWIN, VK_RWIN, VK_APPS, VK_PRIOR, VK_NEXT, VK_END, VK_HOME, VK_INSERT, VK_DELETE, VK_DIVIDE, VK_NUMLOCK]
 
-# proc keyName(virtualKeycode: int, scanCode: clong): string =
+# proc keyName(virtualKeycode: DWORD, scanCode: DWORD): string =
 #   var sc = scanCode
 #   var keyname = newWString(256)
 #   if virtualKeycode in specialKeys:
@@ -33,19 +34,31 @@ template setGlobalKeyboardHook*(eventHandler: (key: int, eventType: KeyEvent)->b
   proc HookCallback(nCode: int32, wParam: WPARAM, lParam: LPARAM): LRESULT {.stdcall.} =
       if nCode == HC_ACTION:
         var kbdstruct: PKBDLLHOOKSTRUCT = cast[ptr KBDLLHOOKSTRUCT](lparam)
-        case wParam:
-          of WM_KEYDOWN, WM_SYSKEYDOWN:
-            # debug "Key code: 0x", kbdstruct.vkCode.toHex(2)
-            if eventHandler(kbdstruct.vkCode, KeyDown):
-              return 1
-          of WM_KEYUP, WM_SYSKEYUP:
-            if eventHandler(kbdstruct.vkCode, KeyUp):
-              return 1
-          else: discard
+        let isNotInjectedKey = (kbdstruct.flags and LLKHF_INJECTED) == 0
+        if isNotInjectedKey and wParam.int in keyEvents:
+          let keyEvent = if wParam.int in [WM_KEYDOWN, WM_SYSKEYDOWN]: KeyDown
+                         else: KeyUp
+          # debug "Key code: 0x", kbdstruct.vkCode.toHex(2), " name: ", keyName(kbdstruct.vkCode, kbdstruct.scanCode)
+
+          if eventHandler(kbdstruct.vkCode, keyEvent):
+            return 1
 
       return CallNextHookEx(0, nCode, wParam, lParam)
 
   SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC) HookCallback, 0,  0)
+
+proc initKeyboardInput(virtualKeyCode: uint16, flags: int32 = 0): INPUT =
+  result.`type` = INPUT_KEYBOARD
+  result.ki.wVk = virtualKeyCode
+  result.ki.dwFlags = flags
+
+
+proc send(self: INPUT) =
+  SendInput(UINT 1, cast[LPINPUT](&self), int32 sizeof INPUT)
+
+proc sendKey*(virtualKeyCode: uint16, flags: int32 = 0) =
+  var altDown = initKeyboardInput(VK_MENU, flags)
+  altDown.send()
 
 
 proc runMessageQueueForever*() =
