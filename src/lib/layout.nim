@@ -9,6 +9,7 @@ import strformat
 import algorithm
 import options
 
+
 type
   LayoutKind* = enum
     Window, Container
@@ -33,14 +34,21 @@ type
 
   Desktop* = TreeNode[Layout]
 
+using
+  self: Desktop
+  root: Desktop
+  dir: Direction
+
+
+
 converter intToInt32(x: int): int32 = int32 x
 
-proc isWindow*(self: Desktop): bool = self.value.kind == Window
-proc isContainer*(self: Desktop): bool = self.value.kind == Container
-proc isRow*(self: Desktop): bool = self.value.orientation == Row
-proc isColumn*(self: Desktop): bool = self.value.orientation == Column
+proc isWindow*(self): bool = self.value.kind == Window
+proc isContainer*(self): bool = self.value.kind == Container
+proc isRow*(self): bool = self.value.orientation == Row
+proc isColumn*(self): bool = self.value.orientation == Column
 
-proc `$`*(self: Desktop, indent = "", last = true): string =
+proc `$`*(self; indent = "", last = true): string =
   let name = if self.isWindow: self.value.window.title
              else: fmt"Container {self.value.orientation}"
   let nextIndent = if last: "   "
@@ -54,7 +62,7 @@ proc `$`*(self: Desktop, indent = "", last = true): string =
   for i, child in self.children:
     result.add `$`(child, indent & nextIndent, i == self.children.len)
 
-proc balanceDesktopDimensions(self: Desktop) =
+proc balanceDesktopDimensions(self) =
   # let borderThickness = GetSystemMetrics(SM_CXSIZEFRAME)
   # let halfBorder = int round borderThickness/2
   self.walkIt:
@@ -77,7 +85,7 @@ proc balanceDesktopDimensions(self: Desktop) =
                 x = it.value.x
                 y = it.value.y + i * newHeight
 
-proc render*(self: Desktop) =
+proc render*(self) =
   self.balanceDesktopDimensions()
   # debug '\n', $self
   let allWindows = self.allIt(it.value.kind == Window).mapIt(it.value)
@@ -111,7 +119,7 @@ proc newDesktop*(orientation: Orientation, parent: Desktop, width, height: int, 
 
 
 
-proc copyToGrandParent(self: Desktop) =
+proc copyToGrandParent(self) =
   if not self.isRootNode and not self.parent.isRootNode:
     var closestGrandParnet: Desktop = self.parent.parent
     # If grandparent is nil because of drop, continue climb
@@ -120,7 +128,7 @@ proc copyToGrandParent(self: Desktop) =
         closestGrandParnet = closestGrandParnet.parent
     closestGrandParnet.add self
 
-proc dropDesktop*(self: Desktop) =
+proc dropDesktop*(self) =
   self.drop()
   if not self.isRootNode and
     self.parent.isContainer and
@@ -139,21 +147,21 @@ proc dropDesktop*(self: Desktop) =
 converter toWindowLayout*(newWindow: Window): Layout =
   Layout(kind: Window, window: newWindow)
 
-proc findFocusedWindow*(self: Desktop): ?Desktop =
+proc findFocusedWindow*(self): ?Desktop =
   let foregroundWindow = getForegroundWindow()
   self.firstIt:
     it.value.kind == Window and it.value.window == foregroundWindow
 
-proc allWindows(self: Desktop): seq[Window] =
+proc allWindows(self): seq[Window] =
   result = self.allIt(it.isWindow).mapIt(it.value.window)
 
 
-proc findWindows*(self: Desktop, visible = true): seq[Desktop] =
+proc findWindows*(self; visible = true): seq[Desktop] =
   self.allIt:
     it.isWindow() and not(it.value.window.isVisible xor visible)
 
 
-proc isInArea(self: Desktop, rect: tuple[x, y, width, height: int]): bool =
+proc isInArea(self; rect: tuple[x, y, width, height: int]): bool =
   let val = self.value
   let (x, y, width, height) = rect
   result = not(
@@ -163,14 +171,14 @@ proc isInArea(self: Desktop, rect: tuple[x, y, width, height: int]): bool =
     y + height <= val.y
   )
 
-proc closestWindow(self: Desktop, dir: Direction): proc (x, y: Desktop): int =
+proc closestWindow(self, dir): proc (x, y: Desktop): int =
   result = proc (a, b: Desktop): int =
     when dir is HorizontalDirection:
       result = cmp(abs(self.value.x - a.value.x), abs(self.value.x - b.value.x))
     else:
       result = cmp(abs(self.value.y - a.value.y), abs(self.value.y - b.value.y))
 
-proc getWindowTo*(self: Desktop, dir: Direction, root: Desktop): ?Desktop =
+proc getWindowTo*(self, dir, root): ?Desktop =
   let windows = root.findWindows()
   let val = self.value
   let searchX = when dir is HorizontalDirection:
@@ -188,64 +196,63 @@ proc getWindowTo*(self: Desktop, dir: Direction, root: Desktop): ?Desktop =
   if adjacentWindows.len > 0:
     result = some adjacentWindows[0]
 
-proc moveUp(self: Desktop) =
+proc moveUp*(self) =
   if not self.isRootNode and not self.parent.isRootNode:
     self.dropDesktop()
     self.copyToGrandParent()
 
-
-proc move*(root, self: Desktop, dir: Direction) =
+proc move*(root, self, dir) =
   if not self.isRootNode:
-    let allSiblings = self.parent.children
-    let index = allSiblings.find(self)
-    if index < 0: return
-
-    let nextIndex = clamp(index + ord(dir), 0, allSiblings.len-1)
-
-    if index != nextIndex:
-      swap self.parent.children[nextIndex], self.parent.children[index]
+    if si =? self.siblingIndex(SiblingDirection dir):
+        mixin si
+        swap(
+          self.parent.children[si],
+          self.parent.children[self.nodeIndex]
+        )
 
 
-proc moveFocusTo*(self: Desktop, dir: Direction, root: Desktop) =
+proc moveFocusTo*(self, dir, root) =
   let winOpts = self.getWindowTo(dir, root)
   if winOpts.isSome:
     let win = winOpts.get()
     win.value.window.setForegroundWindow()
 
-proc groupWith*(self: Desktop; dir: Direction): bool =
+proc groupWith*(self, dir): bool =
   result = true
   var allSiblings = self.parent.children
   let index = allSiblings.find(self)
   if index < 0: return
   let siblingIndex = clamp(index + ord(dir), 0, allSiblings.len-1)
-  let sibling = allSiblings[siblingIndex]
-  if self == sibling:
-    moveUp(self)
-    return true
-  if sibling.isWindow:
-    if self.parent.children.len <= 2: return false
-    var previousParent = self.parent
-    self.drop()
-    sibling.drop()
+  let opts = self.findSibling(SiblingDirection dir)
+  if opts.isSome:
+    let sibling = opts.get()
+    # if self == sibling:
+    #   moveUp(self)
+    #   return true
+    if isWindow sibling:
+      if self.parent.children.len <= 2: return false
+      var previousParent = self.parent
+      self.drop()
+      drop(sibling)
 
-    let children = if index > siblingIndex: @[sibling, self]
-                   else: @[self, sibling]
+      let children = if index > siblingIndex: @[sibling, self]
+                    else: @[self, sibling]
 
-    let container = newDesktop(self.value.orientation, self.parent,
-      self.value.width + sibling.value.width,
-      self.value.height + sibling.value.height, children
-    )
-    with container.value:
-      x = sibling.value.x
-      y = sibling.value.y
-    while not previousParent.isRootNode and
-          not previousParent.parent.children.contains(previousParent):
-        previousParent = previousParent.parent
-    previousParent.insert(container, index)
+      let container = newDesktop(self.value.orientation, self.parent,
+        self.value.width + sibling.value.width,
+        self.value.height + sibling.value.height, children
+      )
+      with container.value:
+        x = sibling.value.x
+        y = sibling.value.y
+      while not previousParent.isRootNode and
+            not previousParent.parent.children.contains(previousParent):
+          previousParent = previousParent.parent
+      previousParent.insert(container, index)
 
-  else:
-    self.drop()
-    if index > siblingIndex:
-      sibling.add self
     else:
-      sibling.insert self, 0
+      self.drop()
+      if index > siblingIndex:
+        sibling.add self
+      else:
+        sibling.insert self, 0

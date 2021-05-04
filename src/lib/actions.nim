@@ -52,15 +52,19 @@ proc transpose*(root, self: Desktop): bool =
 proc groupLeft*(root, self: Desktop): bool =
   if self.parent.value.orientation == Row:
     return self.groupWith(Left)
+  else: layout.moveUp(self)
 
 proc groupRight*(root, self: Desktop): bool =
   if self.parent.value.orientation == Row:
     return self.groupWith(Right)
+  else: layout.moveUp(self)
 
 proc groupDown*(root, self: Desktop): bool =
   if self.parent.value.orientation == Column:
-    return self.groupWith(Right)
+    return self.groupWith(Down)
+  else: layout.moveUp(self)
 
 proc groupUp*(root, self: Desktop): bool =
   if self.parent.value.orientation == Column:
-    return self.groupWith(Left)
+    return self.groupWith(Up)
+  else: layout.moveUp(self)

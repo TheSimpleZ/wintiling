@@ -20,9 +20,9 @@ const hotkeys* = initHotkeys:
   [VK_LWIN, VK_LSHIFT, VK_LEFT]: moveLeft
   [VK_LWIN, VK_LSHIFT, VK_RIGHT]: moveRight
   [VK_LWIN, VK_LSHIFT, VK_DOWN]: moveDown
-  [VK_LWIN, VK_LSHIFT, VK_UP]: moveUp
+  [VK_LWIN, VK_LSHIFT, VK_UP]: actions.moveUp
 
-  [VK_LMENU, VK_LEFT]: groupLeft
-  [VK_LMENU, VK_RIGHT]: groupRight
-  [VK_LMENU, VK_DOWN]: groupDown
-  [VK_LMENU, VK_UP]: groupUp
+  [VK_LWIN, VK_LMENU, VK_LEFT]: groupLeft
+  [VK_LWIN, VK_LMENU, VK_RIGHT]: groupRight
+  [VK_LWIN, VK_LMENU, VK_DOWN]: groupDown
+  [VK_LWIN, VK_LMENU, VK_UP]: groupUp

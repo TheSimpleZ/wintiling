@@ -4,7 +4,10 @@ import macros
 import sugar
 import options
 import lists
+import questionable
 type
+  SiblingDirection* = enum Previous = -1, Next = 1
+
   TreeNode*[T] = ref object of RootObj
     value*: T
     children*: seq[TreeNode[T]]
@@ -12,7 +15,9 @@ type
     of false: parent*: TreeNode[T]
     of true: discard
 
-proc `$`*(self: TreeNode, indent = "", last = true): string =
+using self: TreeNode
+
+proc `$`*(self; indent = "", last = true): string =
   let name = if self.isWindow: self.value.window.title
              else: "Container"
   let nextIndent = if last: "   "
@@ -37,26 +42,43 @@ proc initTreeNode*[T](nodeVal: T, parent: TreeNode[T],
   for child in result.children:
     child.parent = result
 
-proc isRootNode*(self: TreeNode): bool =
+proc isRootNode*(self): bool =
   self.isRootNode
 
-iterator ancestors*(self: TreeNode): TreeNode =
-  var currentNode = self.parent
-  while true:
-    yield currentNode
-    if currentNode.isRootNode: break
-    currentNode = currentNode.parent
+proc allSiblings*(self): seq[TreeNode] =
+  if not self.isRootNode:
+    result = self.parent.children
 
-proc rootNode*(self: TreeNode): TreeNode =
-  for a in self.ancestors:
-    if a.isRootNode: return a
+proc nodeIndex*(self): int =
+  if not self.isRootNode:
+    let allSiblings = self.parent.children
+    let index = allSiblings.find(self)
+    if index >= 0:
+      result = index
+    else:
+      raise newException(ValueError, "Could not find self amongst parent children")
+
+proc siblingIndex*(self; dir: SiblingDirection): ?int =
+  if not self.isRootNode:
+    let index = self.nodeIndex
+    let siblingIndex = clamp(index + ord(dir), 0, self.allSiblings.len-1)
+    if index != siblingIndex:
+      result = some siblingIndex
+
+proc findSibling*(self; dir: SiblingDirection): ?TreeNode =
+  if not self.isRootNode:
+    let index = self.nodeIndex
+
+    if si =? self.siblingIndex(dir):
+      mixin si
+      result = some self.allSiblings[si]
 
 proc insert*[T](self: TreeNode[T], value: TreeNode[T], index: int) {.discardable.} =
   if not value.isRootNode:
     value.parent = self
     self.children.insert(value, clamp(index, 0, self.children.len))
 
-proc add*(self: TreeNode, value: TreeNode): TreeNode {.discardable.} =
+proc add*(self, value: TreeNode): TreeNode {.discardable.} =
   let newNode = initTreeNode(value.value, self, value.children)
   self.children.add(newNode)
 
@@ -72,12 +94,12 @@ proc add*[T](self: TreeNode[T], values: seq[T]): seq[TreeNode[T]] {.discardable.
   ## return last node to be added
   result = values.mapIt(self.add(it))
 
-proc drop*(self: TreeNode) =
+proc drop*(self) =
   if not self.isRootNode:
     let index = self.parent.children.find(self)
     self.parent.children.delete(index)
 
-proc walk*(self: TreeNode, operation: (TreeNode)->bool) =
+proc walk*(self; operation: (TreeNode)->bool) =
   if operation self: return
   for child in self.children:
     child.walk operation
