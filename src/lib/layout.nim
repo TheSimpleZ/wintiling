@@ -5,8 +5,9 @@ import std/with
 import math
 import sequtils
 import questionable
-import logging
 import strformat
+import algorithm
+import options
 
 type
   LayoutKind* = enum
@@ -15,8 +16,13 @@ type
   Orientation* = enum
     Row, Column
 
-  Direction* = enum
-    Backward = -1, Forward = 1
+  HorizontalDirection* = enum
+    Left = -1, Right = 1
+
+  VerticalDirection* = enum
+    Up = -1, Down = 1
+
+  Direction* = HorizontalDirection or VerticalDirection
 
   Layout* = object
     width*, height*, x*, y*: int
@@ -39,7 +45,11 @@ proc `$`*(self: Desktop, indent = "", last = true): string =
              else: fmt"Container {self.value.orientation}"
   let nextIndent = if last: "   "
                    else: "  |  "
-  result = fmt("{indent} +- {name} (w:{self.value.width}, h:{self.value.height}, x:{self.value.x}, y:{self.value.y}) \n")
+  result = fmt"{name} (w:{self.value.width}, h:{self.value.height}, x:{self.value.x}, y:{self.value.y})"
+
+  if self.children.len > 0:
+    result = fmt("{indent} +- {result} \n")
+
 
   for i, child in self.children:
     result.add `$`(child, indent & nextIndent, i == self.children.len)
@@ -69,7 +79,7 @@ proc balanceDesktopDimensions(self: Desktop) =
 
 proc render*(self: Desktop) =
   self.balanceDesktopDimensions()
-  debug '\n', $self
+  # debug '\n', $self
   let allWindows = self.allIt(it.value.kind == Window).mapIt(it.value)
 
   var posStruct = BeginDeferWindowPos(int32 allWindows.len)
@@ -98,6 +108,8 @@ proc newDesktop*(orientation: Orientation, parent: Desktop, width, height: int, 
       width: width,
       height: height
     ), parent, children)
+
+
 
 proc copyToGrandParent(self: Desktop) =
   if not self.isRootNode and not self.parent.isRootNode:
@@ -140,6 +152,42 @@ proc findWindows*(self: Desktop, visible = true): seq[Desktop] =
   self.allIt:
     it.isWindow() and not(it.value.window.isVisible xor visible)
 
+
+proc isInArea(self: Desktop, rect: tuple[x, y, width, height: int]): bool =
+  let val = self.value
+  let (x, y, width, height) = rect
+  result = not(
+    val.x + val.width <= x or
+    x + width <= val.x or
+    val.y + val.height <= y or
+    y + height <= val.y
+  )
+
+proc closestWindow(self: Desktop, dir: Direction): proc (x, y: Desktop): int =
+  result = proc (a, b: Desktop): int =
+    when dir is HorizontalDirection:
+      result = cmp(abs(self.value.x - a.value.x), abs(self.value.x - b.value.x))
+    else:
+      result = cmp(abs(self.value.y - a.value.y), abs(self.value.y - b.value.y))
+
+proc getWindowTo*(self: Desktop, dir: Direction, root: Desktop): ?Desktop =
+  let windows = root.findWindows()
+  let val = self.value
+  let searchX = when dir is HorizontalDirection:
+                  val.x + val.width * ord(dir)
+                else: val.x
+  let searchY = when dir is VerticalDirection:
+                  val.y + val.height * ord(dir)
+                else: val.y
+  var adjacentWindows = windows.filterIt:
+    it != self and
+    it.isInArea (searchX, searchY, val.width, val.height)
+
+  adjacentWindows.sort(self.closestWindow(dir))
+
+  if adjacentWindows.len > 0:
+    result = some adjacentWindows[0]
+
 proc moveUp(self: Desktop) =
   if not self.isRootNode and not self.parent.isRootNode:
     self.dropDesktop()
@@ -158,14 +206,11 @@ proc move*(root, self: Desktop, dir: Direction) =
       swap self.parent.children[nextIndex], self.parent.children[index]
 
 
-proc moveWindowFocus*(root, self: Desktop; dir: Direction) =
-  let allWindows = root.allWindows()
-  let currentFocus = allWindows.find getForegroundWindow()
-  let newFocus = clamp(currentFocus+ord(dir), 0, allWindows.len-1)
-
-  let targetHwnd = allWindows[newFocus]
-
-  targetHwnd.setForegroundWindow()
+proc moveFocusTo*(self: Desktop, dir: Direction, root: Desktop) =
+  let winOpts = self.getWindowTo(dir, root)
+  if winOpts.isSome:
+    let win = winOpts.get()
+    win.value.window.setForegroundWindow()
 
 proc groupWith*(self: Desktop; dir: Direction): bool =
   result = true
@@ -197,16 +242,10 @@ proc groupWith*(self: Desktop; dir: Direction): bool =
           not previousParent.parent.children.contains(previousParent):
         previousParent = previousParent.parent
     previousParent.insert(container, index)
-    # debugEcho '\n', $self.parent.parent
 
   else:
-    # debugEcho '\n', $self.parent
     self.drop()
     if index > siblingIndex:
       sibling.add self
     else:
       sibling.insert self, 0
-
-    # debugEcho '\n', $self.parent
-
-    # debugEcho '\n', $self.parent

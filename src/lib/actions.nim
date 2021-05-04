@@ -1,45 +1,46 @@
 import layout
+import questionable
+import win32/window
 
 proc supressKey*(root, self: Desktop): bool = discard
+proc printTree*(root, self: Desktop): bool =
+  debugEcho root
+
 
 proc moveWindowFocusLeft*(root, self: Desktop): bool =
-  if self.parent.value.orientation == Row:
-    root.moveWindowFocus(self, Backward)
-  false
+  self.moveFocusTo(Left, root)
+  result = false
 
 proc moveWindowFocusRight*(root, self: Desktop): bool =
-  if self.parent.value.orientation == Row:
-    root.moveWindowFocus(self, Forward)
+  self.moveFocusTo(Right, root)
   false
 
 proc moveWindowFocusDown*(root, self: Desktop): bool =
-  if self.parent.value.orientation == Column:
-    root.moveWindowFocus(self, Forward)
+  self.moveFocusTo(Down, root)
   false
 
 proc moveWindowFocusUp*(root, self: Desktop): bool =
-  if self.parent.value.orientation == Column:
-    root.moveWindowFocus(self, Backward)
+  self.moveFocusTo(Up, root)
   false
 
 proc moveLeft*(root, self: Desktop): bool =
   if self.parent.value.orientation == Row:
-    root.move self, Backward
+    root.move self, Left
     return true
 
 proc moveRight*(root, self: Desktop): bool =
   if self.parent.value.orientation == Row:
-    root.move self, Forward
+    root.move self, Right
     return true
 
 proc moveDown*(root, self: Desktop): bool =
   if self.parent.value.orientation == Column:
-    root.move self, Forward
+    root.move self, Right
     return true
 
 proc moveUp*(root, self: Desktop): bool =
   if self.parent.value.orientation == Column:
-    root.move self, Backward
+    root.move self, Left
     return true
 
 proc transpose*(root, self: Desktop): bool =
@@ -50,16 +51,16 @@ proc transpose*(root, self: Desktop): bool =
 
 proc groupLeft*(root, self: Desktop): bool =
   if self.parent.value.orientation == Row:
-    return self.groupWith(Backward)
+    return self.groupWith(Left)
 
 proc groupRight*(root, self: Desktop): bool =
   if self.parent.value.orientation == Row:
-    return self.groupWith(Forward)
+    return self.groupWith(Right)
 
 proc groupDown*(root, self: Desktop): bool =
   if self.parent.value.orientation == Column:
-    return self.groupWith(Forward)
+    return self.groupWith(Right)
 
 proc groupUp*(root, self: Desktop): bool =
   if self.parent.value.orientation == Column:
-    return self.groupWith(Backward)
+    return self.groupWith(Left)

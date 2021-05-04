@@ -40,6 +40,17 @@ proc initTreeNode*[T](nodeVal: T, parent: TreeNode[T],
 proc isRootNode*(self: TreeNode): bool =
   self.isRootNode
 
+iterator ancestors*(self: TreeNode): TreeNode =
+  var currentNode = self.parent
+  while true:
+    yield currentNode
+    if currentNode.isRootNode: break
+    currentNode = currentNode.parent
+
+proc rootNode*(self: TreeNode): TreeNode =
+  for a in self.ancestors:
+    if a.isRootNode: return a
+
 proc insert*[T](self: TreeNode[T], value: TreeNode[T], index: int) {.discardable.} =
   if not value.isRootNode:
     value.parent = self

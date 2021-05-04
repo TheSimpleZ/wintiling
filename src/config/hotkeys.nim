@@ -6,6 +6,9 @@ import ../lib/actions
 
 
 const hotkeys* = initHotkeys:
+  [VK_LWIN]: supressKey
+
+  [VK_LWIN, VirtualCodes['P']]: printTree
   [VK_LWIN, VirtualCodes['E']]: transpose
 
   [VK_LWIN, VK_LEFT]: moveWindowFocusLeft
