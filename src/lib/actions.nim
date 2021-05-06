@@ -7,38 +7,38 @@ proc printTree*(root, self: Desktop): bool =
   debugEcho root
 
 
-proc moveWindowFocusLeft*(root, self: Desktop): bool =
+proc move_window_focus_left*(root, self: Desktop): bool =
   self.moveFocusTo(Left, root)
   result = false
 
-proc moveWindowFocusRight*(root, self: Desktop): bool =
+proc move_window_focus_right*(root, self: Desktop): bool =
   self.moveFocusTo(Right, root)
   false
 
-proc moveWindowFocusDown*(root, self: Desktop): bool =
+proc move_window_focus_down*(root, self: Desktop): bool =
   self.moveFocusTo(Down, root)
   false
 
-proc moveWindowFocusUp*(root, self: Desktop): bool =
+proc move_window_focus_up*(root, self: Desktop): bool =
   self.moveFocusTo(Up, root)
   false
 
-proc moveLeft*(root, self: Desktop): bool =
+proc move_window_left*(root, self: Desktop): bool =
   if self.parent.value.orientation == Row:
     root.move self, Left
     return true
 
-proc moveRight*(root, self: Desktop): bool =
+proc move_window_right*(root, self: Desktop): bool =
   if self.parent.value.orientation == Row:
     root.move self, Right
     return true
 
-proc moveDown*(root, self: Desktop): bool =
+proc move_window_down*(root, self: Desktop): bool =
   if self.parent.value.orientation == Column:
     root.move self, Right
     return true
 
-proc moveUp*(root, self: Desktop): bool =
+proc move_window_up*(root, self: Desktop): bool =
   if self.parent.value.orientation == Column:
     root.move self, Left
     return true
@@ -49,22 +49,22 @@ proc transpose*(root, self: Desktop): bool =
     child.value.orientation = self.parent.value.orientation
   return true
 
-proc groupLeft*(root, self: Desktop): bool =
+proc group_with_left_window*(root, self: Desktop): bool =
   if self.parent.value.orientation == Row:
     return self.groupWith(Left)
   else: layout.moveUp(self)
 
-proc groupRight*(root, self: Desktop): bool =
+proc group_with_right_window*(root, self: Desktop): bool =
   if self.parent.value.orientation == Row:
-    return self.groupWith(Right)
+    self.groupWith(Right)
   else: layout.moveUp(self)
 
-proc groupDown*(root, self: Desktop): bool =
+proc group_with_window_below*(root, self: Desktop): bool =
   if self.parent.value.orientation == Column:
-    return self.groupWith(Down)
+    self.groupWith(Down)
   else: layout.moveUp(self)
 
-proc groupUp*(root, self: Desktop): bool =
+proc group_with_window_above*(root, self: Desktop): bool =
   if self.parent.value.orientation == Column:
-    return self.groupWith(Up)
+    self.groupWith(Up)
   else: layout.moveUp(self)

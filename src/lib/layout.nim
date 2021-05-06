@@ -51,13 +51,14 @@ proc isColumn*(self): bool = self.value.orientation == Column
 proc `$`*(self; indent = "", last = true): string =
   let name = if self.isWindow: self.value.window.title
              else: fmt"Container {self.value.orientation}"
-  let nextIndent = if last: "   "
-                   else: "  |  "
+
   result = fmt"{name} (w:{self.value.width}, h:{self.value.height}, x:{self.value.x}, y:{self.value.y})"
 
-  if self.children.len > 0:
-    result = fmt("{indent} +- {result} \n")
+  # if self.children.len > 0:
+  result = fmt("{indent} +- {result} \n")
 
+  let nextIndent = if last: "   "
+                   else: "  |  "
 
   for i, child in self.children:
     result.add `$`(child, indent & nextIndent, i == self.children.len)
@@ -102,7 +103,7 @@ proc render*(self) =
   posStruct.EndDeferWindowPos()
 
 proc newDesktop*(orientation: Orientation, width, height: int): Desktop =
-  initTreeNode(Layout(
+  newTreeNode(Layout(
       kind: Container,
       orientation: orientation,
       width: width,
@@ -110,23 +111,33 @@ proc newDesktop*(orientation: Orientation, width, height: int): Desktop =
     ))
 
 proc newDesktop*(orientation: Orientation, parent: Desktop, width, height: int, children: seq[Desktop] = @[]): Desktop =
-  initTreeNode(Layout(
+  newTreeNode(Layout(
       kind: Container,
       orientation: orientation,
       width: width,
       height: height
     ), parent, children)
 
+proc closestValidAncestor(self): ?Desktop =
+  if not self.isRootNode and not self.parent.isRootNode:
+    var closestAncestor: Desktop = self.parent.parent
+    # If grandparent is nil because of drop, continue climb
+    while not closestAncestor.isRootNode and
+          not closestAncestor.parent.children.contains(closestAncestor):
+        closestAncestor = closestAncestor.parent
 
+    if closestAncestor.isRootNode or closestAncestor.parent.children.contains(closestAncestor):
+      result = some closestAncestor
+
+proc copyToGrandParent(self; index: int) =
+  if not self.isRootNode and not self.parent.isRootNode:
+    if ancestor =? self.closestValidAncestor():
+      ancestor.insert self, index
 
 proc copyToGrandParent(self) =
   if not self.isRootNode and not self.parent.isRootNode:
-    var closestGrandParnet: Desktop = self.parent.parent
-    # If grandparent is nil because of drop, continue climb
-    while not closestGrandParnet.isRootNode and
-          not closestGrandParnet.parent.children.contains(closestGrandParnet):
-        closestGrandParnet = closestGrandParnet.parent
-    closestGrandParnet.add self
+    if ancestor =? self.closestValidAncestor():
+      ancestor.add self
 
 proc dropDesktop*(self) =
   self.drop()
@@ -196,10 +207,18 @@ proc getWindowTo*(self, dir, root): ?Desktop =
   if adjacentWindows.len > 0:
     result = some adjacentWindows[0]
 
-proc moveUp*(self) =
+proc moveUp*(self): bool =
   if not self.isRootNode and not self.parent.isRootNode:
-    self.dropDesktop()
-    self.copyToGrandParent()
+    result = true
+    if self.parent.children.len < 3:
+      for sibling in self.parent.children:
+        sibling.value.orientation = self.parent.parent.value.orientation
+      self.parent.delete()
+    else:
+      self.drop()
+      self.value.orientation = self.parent.parent.value.orientation
+      self.parent.parent.insert(self, self.parent.nodeIndex)
+
 
 proc move*(root, self, dir) =
   if not self.isRootNode:
@@ -212,47 +231,56 @@ proc move*(root, self, dir) =
 
 
 proc moveFocusTo*(self, dir, root) =
-  let winOpts = self.getWindowTo(dir, root)
-  if winOpts.isSome:
-    let win = winOpts.get()
-    win.value.window.setForegroundWindow()
+  if win =? self.getWindowTo(dir, root).?value.?window:
+    mixin win
+    setForegroundWindow win
+
+proc wrapInContainer(children: seq[Desktop]): Desktop =
+  let self = children[0]
+  if not self.isRootNode:
+    let width = children.mapIt(it.value.width).foldl(a+b)
+    let height = children.mapIt(it.value.height).foldl(a+b)
+    result = newDesktop(self.value.orientation, self.parent,
+      width, height, @children
+    )
+    with result.value:
+      x = self.value.x
+      y = self.value.y
 
 proc groupWith*(self, dir): bool =
   result = true
-  var allSiblings = self.parent.children
-  let index = allSiblings.find(self)
-  if index < 0: return
-  let siblingIndex = clamp(index + ord(dir), 0, allSiblings.len-1)
   let opts = self.findSibling(SiblingDirection dir)
   if opts.isSome:
     let sibling = opts.get()
-    # if self == sibling:
-    #   moveUp(self)
-    #   return true
-    if isWindow sibling:
+    let index = self.nodeIndex
+    let siblingIndex = sibling.nodeIndex
+    if sibling.isWindow:
       if self.parent.children.len <= 2: return false
-      var previousParent = self.parent
-      self.drop()
-      drop(sibling)
-
       let children = if index > siblingIndex: @[sibling, self]
-                    else: @[self, sibling]
-
-      let container = newDesktop(self.value.orientation, self.parent,
-        self.value.width + sibling.value.width,
-        self.value.height + sibling.value.height, children
-      )
-      with container.value:
-        x = sibling.value.x
-        y = sibling.value.y
-      while not previousParent.isRootNode and
-            not previousParent.parent.children.contains(previousParent):
-          previousParent = previousParent.parent
-      previousParent.insert(container, index)
+                     else: @[self, sibling]
+      let previousParent = self.parent
+      self.drop()
+      sibling.drop()
+      let container = wrapInContainer(children)
+      previousParent.insert(container, min(index, siblingIndex))
 
     else:
       self.drop()
+      self.value.orientation = sibling.value.orientation
       if index > siblingIndex:
         sibling.add self
       else:
         sibling.insert self, 0
+
+      if self.parent.allSiblings.len < 2:
+        if self.parent.isRootNode and self.parent.children.len == 1:
+          let child = self.parent.children[0]
+          if child.isContainer:
+            child.drop()
+            for grandChild in child.children:
+              self.parent.add(grandChild)
+        else:
+          self.parent.delete()
+
+  else:
+    result = moveUp(self)

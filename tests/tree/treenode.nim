@@ -3,11 +3,11 @@ import sugar
 import sequtils
 
 block init:
-  var fakeTree = initTreeNode(0)
+  var fakeTree = newTreeNode(0)
   doAssert fakeTree.value == 0, "Can't initialize Tree"
 
 block add:
-  var fakeTree = initTreeNode(0)
+  var fakeTree = newTreeNode(0)
   fakeTree.add(1)
 
   let newNode = fakeTree.add(1)
@@ -16,7 +16,7 @@ block add:
   doAssert not newNode.isRootNode, "Child node is also root node"
 
 block drop:
-  var fakeTree = initTreeNode(0)
+  var fakeTree = newTreeNode(0)
   fakeTree.add(1)
 
   let child = fakeTree.children[0]
@@ -26,7 +26,7 @@ block drop:
   doAssert fakeTree.children.len == 0, "Could not drop child node"
 
 block walkTree:
-  var fakeTree = initTreeNode 0
+  var fakeTree = newTreeNode 0
   fakeTree.add @[1, 2, 3]
   fakeTree.children[0].add 4
   const expected = @[0, 1, 4, 2, 3]

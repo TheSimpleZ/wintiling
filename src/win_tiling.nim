@@ -65,14 +65,14 @@ proc windowStateChanged(newWindow: Window, eventType: WindowStateChangeEvent) =
 winAuto.onWindowStateChanged(windowStateChanged)
 
 
-proc resetAllStyles() {.noconv.} =
-  topLevelLayout.walkIt:
-    if it.value.kind == LayoutKind.Window:
-      it.value.window.resetStyles()
-  quit()
+# proc resetAllStyles() {.noconv.} =
+#   topLevelLayout.walkIt:
+#     if it.value.kind == LayoutKind.Window:
+#       it.value.window.resetStyles()
+#   quit()
 
-addExitProc(resetAllStyles)
-setControlCHook(resetAllStyles)
+# addExitProc(resetAllStyles)
+# setControlCHook(resetAllStyles)
 
 
 var keysPressed: HashSet[int]
