@@ -46,25 +46,26 @@ proc move_window_up*(root, self: Desktop): bool =
 proc transpose*(root, self: Desktop): bool =
   self.parent.value.orientation = if self.parent.isRow: Column else: Row
   for child in self.parent.children:
-    child.value.orientation = self.parent.value.orientation
+    if child.isWindow:
+      child.value.orientation = self.parent.value.orientation
   return true
 
 proc group_with_left_window*(root, self: Desktop): bool =
   if self.parent.value.orientation == Row:
     return self.groupWith(Left)
-  else: layout.moveUp(self)
+  else: layout.moveUp(self, Left)
 
 proc group_with_right_window*(root, self: Desktop): bool =
   if self.parent.value.orientation == Row:
     self.groupWith(Right)
-  else: layout.moveUp(self)
+  else: layout.moveUp(self, Right)
 
 proc group_with_window_below*(root, self: Desktop): bool =
   if self.parent.value.orientation == Column:
     self.groupWith(Down)
-  else: layout.moveUp(self)
+  else: layout.moveUp(self, Down)
 
 proc group_with_window_above*(root, self: Desktop): bool =
   if self.parent.value.orientation == Column:
     self.groupWith(Up)
-  else: layout.moveUp(self)
+  else: layout.moveUp(self, Up)

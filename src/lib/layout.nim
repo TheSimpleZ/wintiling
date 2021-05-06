@@ -207,17 +207,20 @@ proc getWindowTo*(self, dir, root): ?Desktop =
   if adjacentWindows.len > 0:
     result = some adjacentWindows[0]
 
-proc moveUp*(self): bool =
+proc moveUp*(self, dir): bool =
   if not self.isRootNode and not self.parent.isRootNode:
     result = true
     if self.parent.children.len < 3:
       for sibling in self.parent.children:
-        sibling.value.orientation = self.parent.parent.value.orientation
+        if sibling.isWindow:
+          sibling.value.orientation = self.parent.parent.value.orientation
       self.parent.delete()
     else:
       self.drop()
       self.value.orientation = self.parent.parent.value.orientation
-      self.parent.parent.insert(self, self.parent.nodeIndex)
+      var nextIndex = self.parent.nodeIndex
+      if ord(dir) == 1: inc nextIndex
+      self.parent.parent.insert(self, nextIndex)
 
 
 proc move*(root, self, dir) =
@@ -282,5 +285,6 @@ proc groupWith*(self, dir): bool =
         else:
           self.parent.delete()
 
-  else:
-    result = moveUp(self)
+  elif not self.isRootNode and not self.parent.isRootNode and
+      self.value.orientation == self.parent.parent.value.orientation:
+    result = moveUp(self, dir)
