@@ -9,8 +9,8 @@ type
 
 const VirtualCodes* = block:
     let
-      keys = {'A'..'Z'}.toSeq
-      codes = {0x41..0x5A}.toSeq
+      keys = {'0'..'9', 'A'..'Z'}.toSeq
+      codes =  {0x30..0x39, 0x41..0x5A}.toSeq
 
     var codeTable = initTable[char, int]()
     for pairs in zip(keys, codes):
@@ -56,9 +56,8 @@ proc initKeyboardInput(virtualKeyCode: uint16, flags: int32 = 0): INPUT =
 proc send(self: INPUT) =
   SendInput(UINT 1, cast[LPINPUT](&self), int32 sizeof INPUT)
 
-proc sendKey*(virtualKeyCode: uint16, flags: int32 = 0) =
-  var altDown = initKeyboardInput(VK_MENU, flags)
-  altDown.send()
+proc sendKey*(virtualKeyCode: int, flags: int32 = 0) =
+  send initKeyboardInput(uint16 virtualKeyCode, flags)
 
 
 proc runMessageQueueForever*() =

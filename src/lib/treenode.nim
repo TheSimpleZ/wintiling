@@ -70,7 +70,6 @@ proc siblingIndex*(self; dir: SiblingDirection): ?int =
 proc findSibling*(self; dir: SiblingDirection): ?TreeNode =
   if not self.isRootNode:
     if si =? self.siblingIndex(dir):
-      mixin si
       result = some self.allSiblings[si]
 
 proc insert*[T](self: TreeNode[T], value: TreeNode[T], index: int) {.discardable.} =

@@ -226,7 +226,6 @@ proc moveUp*(self, dir): bool =
 proc move*(root, self, dir) =
   if not self.isRootNode:
     if si =? self.siblingIndex(SiblingDirection dir):
-        mixin si
         swap(
           self.parent.children[si],
           self.parent.children[self.nodeIndex]
@@ -234,9 +233,8 @@ proc move*(root, self, dir) =
 
 
 proc moveFocusTo*(self, dir, root) =
-  if win =? self.getWindowTo(dir, root).?value.?window:
-    mixin win
-    setForegroundWindow win
+  if win =? self.getWindowTo(dir, root):
+    setForegroundWindow win.value.window
 
 proc wrapInContainer(children: seq[Desktop]): Desktop =
   let self = children[0]

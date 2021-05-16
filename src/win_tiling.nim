@@ -40,7 +40,7 @@ topLevelLayout.render()
 proc windowStateChanged(newWindow: Window, eventType: WindowStateChangeEvent) =
   case eventType:
     of Opened:
-      if newWindow.isVisible:
+      if newWindow.isVisible and not newWindow.title.contains("WinTiling"):
         debug("Windows opened: ", newWindow.title)
         let focusedWindowOpts = topLevelLayout.findFocusedWindow()
 
