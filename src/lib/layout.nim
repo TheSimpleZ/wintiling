@@ -8,6 +8,8 @@ import questionable
 import strformat
 import algorithm
 import options
+import std/monotimes
+import times
 
 
 type
@@ -86,9 +88,16 @@ proc balanceDesktopDimensions(self) =
                 x = it.value.x
                 y = it.value.y + i * newHeight
 
+var last_invocation: MonoTime
 proc render*(self) =
+  let currentTime = getMonoTime()
+  if last_invocation.ticks != 0 and
+     currentTime - last_invocation < initDuration(milliseconds = 100):
+    return
+  last_invocation = currentTime
+
   self.balanceDesktopDimensions()
-  # debug '\n', $self
+
   let allWindows = self.allIt(it.value.kind == Window).mapIt(it.value)
 
   var posStruct = BeginDeferWindowPos(int32 allWindows.len)
@@ -129,11 +138,6 @@ proc closestValidAncestor(self): ?Desktop =
     if closestAncestor.isRootNode or closestAncestor.parent.children.contains(closestAncestor):
       result = some closestAncestor
 
-proc copyToGrandParent(self; index: int) =
-  if not self.isRootNode and not self.parent.isRootNode:
-    if ancestor =? self.closestValidAncestor():
-      ancestor.insert self, index
-
 proc copyToGrandParent(self) =
   if not self.isRootNode and not self.parent.isRootNode:
     if ancestor =? self.closestValidAncestor():
@@ -162,9 +166,6 @@ proc findFocusedWindow*(self): ?Desktop =
   let foregroundWindow = getForegroundWindow()
   self.firstIt:
     it.value.kind == Window and it.value.window == foregroundWindow
-
-proc allWindows(self): seq[Window] =
-  result = self.allIt(it.isWindow).mapIt(it.value.window)
 
 
 proc findWindows*(self; visible = true): seq[Desktop] =

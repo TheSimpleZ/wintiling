@@ -43,7 +43,7 @@ proc windowStateChanged(newWindow: Window, eventType: WindowStateChangeEvent) =
       if newWindow.isVisible and not newWindow.title.contains("WinTiling"):
         debug("Windows opened: ", newWindow.title)
         let focusedWindowOpts = topLevelLayout.findFocusedWindow()
-
+        debug newWindow == getForegroundWindow()
         let container = if focusedWindowOpts.isSome:
                           focusedWindowOpts.get().parent
                         else: topLevelLayout
@@ -65,14 +65,14 @@ proc windowStateChanged(newWindow: Window, eventType: WindowStateChangeEvent) =
 winAuto.onWindowStateChanged(windowStateChanged)
 
 
-# proc resetAllStyles() {.noconv.} =
-#   topLevelLayout.walkIt:
-#     if it.value.kind == LayoutKind.Window:
-#       it.value.window.resetStyles()
-#   quit()
+proc resetAllStyles() {.noconv.} =
+  # topLevelLayout.walkIt:
+  #   if it.value.kind == LayoutKind.Window:
+  #     it.value.window.resetStyles()
+  quit()
 
 # addExitProc(resetAllStyles)
-# setControlCHook(resetAllStyles)
+setControlCHook(resetAllStyles)
 
 
 var keysPressed: HashSet[int]
